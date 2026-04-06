@@ -1,0 +1,29 @@
+# === Node / Vite / React / Server ===
+node_modules/
+dist/
+build/
+.vite/
+.cache/
+coverage/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# env / secretos
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# certificados / llaves (por si luego agregas)
+*.pem
+*.key
+*.crt
