@@ -1,0 +1,20 @@
+# ===== Node / Vite / React =====
+**/node_modules/
+**/dist/
+**/.vite/
+**/*.log
+
+# ===== Env (NO subir credenciales) =====
+**/.env
+**/.env.*
+!.env.example
+
+# ===== OS / Editor =====
+.DS_Store
+Thumbs.db
+**/.vscode/
+**/.idea/
+
+# ===== Arduino / build temp (por si acaso) =====
+**/*.bin
+**/*.elf
