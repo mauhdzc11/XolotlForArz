@@ -108,19 +108,19 @@ function tempBadgeFromTelemetry(
 ): { cls: "ok" | "warn" | "bad"; text: string } {
   const t = Number(tWater);
 
-  if (!Number.isFinite(t) || t === -127) return { cls: "bad" as const, text: "sensor" };
+  if (!Number.isFinite(t) || t === -127) return { cls: "bad", text: "sensor" };
 
-  if (tempStatus === "ok") return { cls: "ok" as const, text: "ideal" };
-  if (tempStatus === "cool") return { cls: "warn" as const, text: "fría" };
-  if (tempStatus === "warm") return { cls: "warn" as const, text: "templada" };
-  if (tempStatus === "warning") return { cls: "warn" as const, text: "advertencia" };
-  if (tempStatus === "high") return { cls: "bad" as const, text: "alta" };
-  if (tempStatus === "emergency") return { cls: "bad" as const, text: "emergencia" };
+  if (tempStatus === "ok") return { cls: "ok", text: "ideal" };
+  if (tempStatus === "cool") return { cls: "warn", text: "fría" };
+  if (tempStatus === "warm") return { cls: "warn", text: "templada" };
+  if (tempStatus === "warning") return { cls: "warn", text: "advertencia" };
+  if (tempStatus === "high") return { cls: "bad", text: "alta" };
+  if (tempStatus === "emergency") return { cls: "bad", text: "emergencia" };
 
-  if (t >= emergency) return { cls: "bad" as const, text: "emergencia" };
-  if (t > idealMax) return { cls: "warn" as const, text: "templada" };
-  if (t < idealMin) return { cls: "warn" as const, text: "fría" };
-  return { cls: "ok" as const, text: "ideal" };
+  if (t >= emergency) return { cls: "bad", text: "emergencia" };
+  if (t > idealMax) return { cls: "warn", text: "templada" };
+  if (t < idealMin) return { cls: "warn", text: "fría" };
+  return { cls: "ok", text: "ideal" };
 }
 
 export default function App() {
@@ -139,6 +139,8 @@ export default function App() {
   const [warnTemp, setWarnTemp] = useState(DEFAULT_WARN);
   const [highTemp, setHighTemp] = useState(DEFAULT_HIGH);
   const [emergencyTemp, setEmergencyTemp] = useState(DEFAULT_EMERGENCY);
+
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
 
   const [logoOk, setLogoOk] = useState(false);
   const [axoOk, setAxoOk] = useState(false);
@@ -213,18 +215,20 @@ export default function App() {
         setManualPwm(clamp(Number(parsed.fanPercent), MIN_PWM, MAX_PWM));
       }
 
-      if (Number.isFinite(parsed.idealMin)) setIdealMin(Number(parsed.idealMin));
-      if (Number.isFinite(parsed.idealMax)) setIdealMax(Number(parsed.idealMax));
-      if (Number.isFinite(parsed.warn)) setWarnTemp(Number(parsed.warn));
-      if (Number.isFinite(parsed.high)) setHighTemp(Number(parsed.high));
-      if (Number.isFinite(parsed.emergency)) setEmergencyTemp(Number(parsed.emergency));
+      if (!isEditingConfig) {
+        if (Number.isFinite(parsed.idealMin)) setIdealMin(Number(parsed.idealMin));
+        if (Number.isFinite(parsed.idealMax)) setIdealMax(Number(parsed.idealMax));
+        if (Number.isFinite(parsed.warn)) setWarnTemp(Number(parsed.warn));
+        if (Number.isFinite(parsed.high)) setHighTemp(Number(parsed.high));
+        if (Number.isFinite(parsed.emergency)) setEmergencyTemp(Number(parsed.emergency));
+      }
     });
 
     return () => {
       client.end(true);
       clientRef.current = null;
     };
-  }, [clientId]);
+  }, [clientId, isEditingConfig]);
 
   const secondsAgo =
     lastSeen === null ? null : Math.max(0, Math.round((nowTick - lastSeen) / 1000));
@@ -287,6 +291,8 @@ export default function App() {
         emergency: Number(emergencyTemp),
       }));
     }
+
+    setIsEditingConfig(false);
   };
 
   const shownFanPercent = Number.isFinite(tele?.fanPercent)
@@ -480,6 +486,7 @@ export default function App() {
                 step="0.1"
                 inputMode="decimal"
                 value={idealMin}
+                onFocus={() => setIsEditingConfig(true)}
                 onChange={(e) => setIdealMin(Number(e.currentTarget.value))}
               />
             </label>
@@ -491,6 +498,7 @@ export default function App() {
                 step="0.1"
                 inputMode="decimal"
                 value={idealMax}
+                onFocus={() => setIsEditingConfig(true)}
                 onChange={(e) => setIdealMax(Number(e.currentTarget.value))}
               />
             </label>
@@ -502,6 +510,7 @@ export default function App() {
                 step="0.1"
                 inputMode="decimal"
                 value={warnTemp}
+                onFocus={() => setIsEditingConfig(true)}
                 onChange={(e) => setWarnTemp(Number(e.currentTarget.value))}
               />
             </label>
@@ -513,6 +522,7 @@ export default function App() {
                 step="0.1"
                 inputMode="decimal"
                 value={highTemp}
+                onFocus={() => setIsEditingConfig(true)}
                 onChange={(e) => setHighTemp(Number(e.currentTarget.value))}
               />
             </label>
@@ -524,6 +534,7 @@ export default function App() {
                 step="0.1"
                 inputMode="decimal"
                 value={emergencyTemp}
+                onFocus={() => setIsEditingConfig(true)}
                 onChange={(e) => setEmergencyTemp(Number(e.currentTarget.value))}
               />
             </label>
@@ -552,7 +563,7 @@ export default function App() {
 
           <div className="statusList">
             <div><b>MQTT web:</b> {statusText}</div>
-            <div><b>Micro:</b> {statusTextDevice}</div>
+            <div><b>ESP32:</b> {statusTextDevice}</div>
             <div><b>Último dato:</b> {secondsAgo === null ? "--" : `${secondsAgo}s`}</div>
             <div><b>Telemetría:</b> {TOPIC_TELE}</div>
             <div><b>Cmd modo:</b> {TOPIC_CMD_MODE}</div>
