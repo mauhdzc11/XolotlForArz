@@ -40,11 +40,11 @@ const TOPIC_CMD_CONFIG =
   (import.meta.env.VITE_TOPIC_CMD_CONFIG as string) || "axolotl/tank2/cmd/config";
 
 const DEFAULT_IDEAL_MIN = 15;
-const DEFAULT_IDEAL_MAX = 17.7;
+const DEFAULT_IDEAL_MAX = 17;
 const DEFAULT_WARN = 20;
 const DEFAULT_HIGH = 21;
 const DEFAULT_EMERGENCY = 23;
-const DEFAULT_MANUAL_PWM = 10;
+const DEFAULT_MANUAL_PWM = 40;
 const MIN_PWM = 10;
 const MAX_PWM = 100;
 
@@ -70,25 +70,31 @@ function parseTelemetry(raw: string): Telemetry | null {
 
     const msg = JSON.parse(raw) as Record<string, unknown>;
 
+    const toNum = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
     const out: Telemetry = {
-      tWater: Number(msg.tWater),
+      tWater: toNum(msg.tWater),
       unit: typeof msg.unit === "string" ? msg.unit : "C",
       mode: msg.mode === "manual" ? "manual" : msg.mode === "auto" ? "auto" : undefined,
       fanOn:
         typeof msg.fanOn === "boolean"
           ? msg.fanOn
           : msg.fanOn === "true" || msg.fanOn === "1" || msg.fanOn === 1,
-      fanPercent: Number(msg.fanPercent),
+      fanPercent: toNum(msg.fanPercent),
       tempStatus: typeof msg.tempStatus === "string" ? msg.tempStatus : undefined,
-      idealMin: Number(msg.idealMin),
-      idealMax: Number(msg.idealMax),
-      warn: Number(msg.warn),
-      high: Number(msg.high),
-      emergency: Number(msg.emergency),
+      idealMin: toNum(msg.idealMin),
+      idealMax: toNum(msg.idealMax),
+      warn: toNum(msg.warn),
+      high: toNum(msg.high),
+      emergency: toNum(msg.emergency),
     };
 
     return out;
-  } catch {
+  } catch (e) {
+    console.log("Error parseando telemetría:", e, raw);
     return null;
   }
 }
@@ -102,19 +108,19 @@ function tempBadgeFromTelemetry(
 ): { cls: "ok" | "warn" | "bad"; text: string } {
   const t = Number(tWater);
 
-  if (!Number.isFinite(t) || t === -127) return { cls: "bad", text: "sensor" };
+  if (!Number.isFinite(t) || t === -127) return { cls: "bad" as const, text: "sensor" };
 
-  if (tempStatus === "ok") return { cls: "ok", text: "ideal" };
-  if (tempStatus === "cool") return { cls: "warn", text: "fría" };
-  if (tempStatus === "warm") return { cls: "warn", text: "templada" };
-  if (tempStatus === "warning") return { cls: "warn", text: "advertencia" };
-  if (tempStatus === "high") return { cls: "bad", text: "alta" };
-  if (tempStatus === "emergency") return { cls: "bad", text: "emergencia" };
+  if (tempStatus === "ok") return { cls: "ok" as const, text: "ideal" };
+  if (tempStatus === "cool") return { cls: "warn" as const, text: "fría" };
+  if (tempStatus === "warm") return { cls: "warn" as const, text: "templada" };
+  if (tempStatus === "warning") return { cls: "warn" as const, text: "advertencia" };
+  if (tempStatus === "high") return { cls: "bad" as const, text: "alta" };
+  if (tempStatus === "emergency") return { cls: "bad" as const, text: "emergencia" };
 
-  if (t >= emergency) return { cls: "bad", text: "emergencia" };
-  if (t > idealMax) return { cls: "warn", text: "caliente" };
-  if (t < idealMin) return { cls: "warn", text: "fría" };
-  return { cls: "ok", text: "ideal" };
+  if (t >= emergency) return { cls: "bad" as const, text: "emergencia" };
+  if (t > idealMax) return { cls: "warn" as const, text: "templada" };
+  if (t < idealMin) return { cls: "warn" as const, text: "fría" };
+  return { cls: "ok" as const, text: "ideal" };
 }
 
 export default function App() {
@@ -150,6 +156,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!MQTT_URL || !MQTT_USER) {
+      console.error("Faltan variables VITE_MQTT_URL o VITE_MQTT_USER");
+    }
+
     setConn("connecting");
     setLastErr("");
 
@@ -176,6 +186,7 @@ export default function App() {
     client.on("close", () => setConn("disconnected"));
 
     client.on("error", (e) => {
+      console.error("MQTT error:", e);
       setConn("disconnected");
       setLastErr(String((e as Error)?.message || e));
     });
@@ -265,7 +276,17 @@ export default function App() {
       emergency: Number(emergencyTemp),
     });
 
-    publish(TOPIC_CMD_CONFIG, payload);
+    const ok = publish(TOPIC_CMD_CONFIG, payload);
+    if (ok) {
+      setTele((prev) => ({
+        ...prev,
+        idealMin: Number(idealMin),
+        idealMax: Number(idealMax),
+        warn: Number(warnTemp),
+        high: Number(highTemp),
+        emergency: Number(emergencyTemp),
+      }));
+    }
   };
 
   const shownFanPercent = Number.isFinite(tele?.fanPercent)
@@ -381,7 +402,7 @@ export default function App() {
           <div className="modeHint">
             {mode === "manual"
               ? "En manual decides si el ventilador está encendido y con qué potencia trabajar."
-              : "En automático el ESP32 decide el PWM para mantener el agua dentro del rango configurado."}
+              : "En automático el micro mantiene 40% dentro del rango, sube al calentarse y se apaga si baja del mínimo ideal."}
           </div>
         </section>
 
@@ -517,7 +538,7 @@ export default function App() {
           </button>
 
           <p className="helperText">
-            En automático el ESP32 arranca el ventilador al pasar el rango ideal y ajusta el PWM solo según la temperatura.
+            En automático el sistema mantiene 40% dentro del rango, sube gradualmente si pasa del máximo ideal y se apaga si baja del mínimo ideal.
           </p>
         </section>
 
@@ -531,7 +552,7 @@ export default function App() {
 
           <div className="statusList">
             <div><b>MQTT web:</b> {statusText}</div>
-            <div><b>ESP32:</b> {statusTextDevice}</div>
+            <div><b>Micro:</b> {statusTextDevice}</div>
             <div><b>Último dato:</b> {secondsAgo === null ? "--" : `${secondsAgo}s`}</div>
             <div><b>Telemetría:</b> {TOPIC_TELE}</div>
             <div><b>Cmd modo:</b> {TOPIC_CMD_MODE}</div>
