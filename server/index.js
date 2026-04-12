@@ -11,7 +11,7 @@ const {
   MQTT_PORT = 1883,
   MQTT_USER = '',
   MQTT_PASS = '',
-  MQTT_BASE = 'axolotl/tank1'
+  MQTT_BASE = 'axolotl/tank2'
 } = process.env;
 
 const app = express();
