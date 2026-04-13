@@ -228,7 +228,7 @@ export default function App() {
       client.end(true);
       clientRef.current = null;
     };
-  }, [clientId, isEditingConfig]);
+  }, [clientId]);
 
   const secondsAgo =
     lastSeen === null ? null : Math.max(0, Math.round((nowTick - lastSeen) / 1000));
@@ -272,27 +272,48 @@ export default function App() {
   };
 
   const sendAutoConfig = () => {
+    const minV = Number(idealMin);
+    const maxV = Number(idealMax);
+    const warnV = Number(warnTemp);
+    const highV = Number(highTemp);
+    const emergencyV = Number(emergencyTemp);
+
+    const valid =
+      Number.isFinite(minV) &&
+      Number.isFinite(maxV) &&
+      Number.isFinite(warnV) &&
+      Number.isFinite(highV) &&
+      Number.isFinite(emergencyV) &&
+      minV < maxV &&
+      maxV < emergencyV &&
+      warnV >= maxV &&
+      highV >= warnV;
+
+    if (!valid) {
+      alert("Rango inválido. Debe cumplirse: mínimo < máximo < emergencia, advertencia >= máximo ideal y alto >= advertencia.");
+      return;
+    }
+
     const payload = JSON.stringify({
-      idealMin: Number(idealMin),
-      idealMax: Number(idealMax),
-      warn: Number(warnTemp),
-      high: Number(highTemp),
-      emergency: Number(emergencyTemp),
+      idealMin: minV,
+      idealMax: maxV,
+      warn: warnV,
+      high: highV,
+      emergency: emergencyV,
     });
 
     const ok = publish(TOPIC_CMD_CONFIG, payload);
     if (ok) {
       setTele((prev) => ({
         ...prev,
-        idealMin: Number(idealMin),
-        idealMax: Number(idealMax),
-        warn: Number(warnTemp),
-        high: Number(highTemp),
-        emergency: Number(emergencyTemp),
+        idealMin: minV,
+        idealMax: maxV,
+        warn: warnV,
+        high: highV,
+        emergency: emergencyV,
       }));
+      setIsEditingConfig(false);
     }
-
-    setIsEditingConfig(false);
   };
 
   const shownFanPercent = Number.isFinite(tele?.fanPercent)
@@ -373,7 +394,7 @@ export default function App() {
             <span className="chip">
               Modo: {mode === "manual" ? "manual" : "automático"}
             </span>
-            <span className="chip">PWM: {shownFanPercent}%</span>
+            <span className="chip">Potencia: {shownFanPercent}%</span>
             <span className="chip">
               Ventilador: {shownFanOn ? "encendido" : "apagado"}
             </span>
@@ -407,8 +428,8 @@ export default function App() {
 
           <div className="modeHint">
             {mode === "manual"
-              ? "En manual decides si el ventilador está encendido y con qué potencia trabajar."
-              : "En automático el micro mantiene 40% dentro del rango, sube al calentarse y se apaga si baja del mínimo ideal."}
+              ? "En manual puedes encender o apagar el enfriamiento y controlar su potencia."
+              : "En modo automático el sistema mantiene la temperatura dentro del trango ideal."}
           </div>
         </section>
 
@@ -549,7 +570,7 @@ export default function App() {
           </button>
 
           <p className="helperText">
-            En automático el sistema mantiene 40% dentro del rango, sube gradualmente si pasa del máximo ideal y se apaga si baja del mínimo ideal.
+            En modo automático, el sistema mantiene la temperatura en el rango ideal.
           </p>
         </section>
 
@@ -565,10 +586,6 @@ export default function App() {
             <div><b>MQTT web:</b> {statusText}</div>
             <div><b>ESP32:</b> {statusTextDevice}</div>
             <div><b>Último dato:</b> {secondsAgo === null ? "--" : `${secondsAgo}s`}</div>
-            <div><b>Telemetría:</b> {TOPIC_TELE}</div>
-            <div><b>Cmd modo:</b> {TOPIC_CMD_MODE}</div>
-            <div><b>Cmd power:</b> {TOPIC_CMD_MANUAL_POWER}</div>
-            <div><b>Cmd pwm:</b> {TOPIC_CMD_MANUAL_PWM}</div>
             {lastErr ? <div className="err"><b>Error:</b> {lastErr}</div> : null}
           </div>
         </section>
